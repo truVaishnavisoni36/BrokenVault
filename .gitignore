@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+storage/metadata.db
+storage/metadata.db-*
+storage/chunks/
+storage/*.db
+*.egg-info/
+.DS_Store
+
+
+# Local restore output
+restored/
+
+storage/

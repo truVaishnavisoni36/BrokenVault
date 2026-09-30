@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BrokenVault</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">BV</div>
+        <div>
+          <div class="brand-name">BrokenVault</div>
+          <div class="brand-subtitle">Local backup system</div>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Primary navigation">
+        <button class="nav-item active" data-view="overview">Overview</button>
+        <button class="nav-item" data-view="backups">Backups</button>
+        <button class="nav-item" data-view="restore">Restore</button>
+        <button class="nav-item" data-view="verify">Verify</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="connection-row">
+          <span class="status-dot" id="server-dot"></span>
+          <span id="server-label">Checking server</span>
+        </div>
+        <div class="server-url" id="server-url">http://127.0.0.1:8000</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow" id="view-eyebrow">Overview</div>
+          <h1 id="view-title">Backup dashboard</h1>
+        </div>
+        <button class="button button-secondary" id="refresh-button">Refresh</button>
+      </header>
+
+      <section class="view active" id="view-overview">
+        <div class="stats-grid">
+          <article class="stat-panel">
+            <div class="stat-label">Completed versions</div>
+            <div class="stat-value" id="stat-versions">—</div>
+            <div class="stat-note" id="stat-latest">No versions yet</div>
+          </article>
+          <article class="stat-panel">
+            <div class="stat-label">Unique stored chunks</div>
+            <div class="stat-value" id="stat-chunks">—</div>
+            <div class="stat-note" id="stat-storage">— stored</div>
+          </article>
+          <article class="stat-panel">
+            <div class="stat-label">Latest backup</div>
+            <div class="stat-value" id="stat-latest-size">—</div>
+            <div class="stat-note" id="stat-reuse">—</div>
+          </article>
+        </div>
+
+        <div class="content-grid">
+          <section class="panel panel-large">
+            <div class="panel-header">
+              <div>
+                <h2>Start a backup</h2>
+                <p>Use the existing BrokenVault client to scan, chunk, deduplicate and publish a version.</p>
+              </div>
+            </div>
+            <form id="backup-form" class="form">
+              <label>
+                Source folder
+                <input id="backup-source" name="source" placeholder="C:\path\to\folder or ./folder" required spellcheck="false">
+                <span class="field-note">The web client runs locally, so this is a path on the same machine as BrokenVault.</span>
+              </label>
+              <div class="form-row">
+                <label>
+                  Interrupt after uploaded chunks
+                  <input id="stop-after" name="stop_after" type="number" min="1" placeholder="Leave empty for normal backup">
+                </label>
+                <div class="form-help">
+                  Use this only for the resume demonstration. A stopped upload remains incomplete until the next backup resumes it.
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="button button-primary" type="submit" id="backup-button">Start backup</button>
+                <span class="form-status" id="backup-status"></span>
+              </div>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>System status</h2>
+                <p>Live state from the local client and server.</p>
+              </div>
+            </div>
+            <div class="status-list">
+              <div class="status-line"><span>Server</span><strong id="system-server">Checking</strong></div>
+              <div class="status-line"><span>Active job</span><strong id="system-job">None</strong></div>
+              <div class="status-line"><span>Unfinished uploads</span><strong id="system-uploads">0</strong></div>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel job-panel" id="backup-job-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Current backup</h2>
+              <p id="job-detail">No backup is running.</p>
+            </div>
+            <span class="job-state" id="job-state">Idle</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="job-progress"></div></div>
+          <div class="progress-meta">
+            <span id="job-progress-text">—</span>
+            <span id="job-chunk-text">—</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Unfinished uploads</h2>
+              <p>Persisted on the FastAPI server. Re-run the same source folder to resume.</p>
+            </div>
+          </div>
+          <div id="unfinished-uploads" class="table-wrap"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Recent versions</h2>
+              <p>Completed versions only. Incomplete uploads do not appear here.</p>
+            </div>
+            <button class="text-button" data-go="backups">View all</button>
+          </div>
+          <div id="recent-versions" class="table-wrap"></div>
+        </section>
+      </section>
+
+      <section class="view" id="view-backups">
+        <div class="section-intro">
+          <h2>Backup history</h2>
+          <p>Every completed version is published atomically after all referenced chunks pass server-side verification.</p>
+        </div>
+        <section class="panel">
+          <div id="all-versions" class="table-wrap"></div>
+        </section>
+      </section>
+
+      <section class="view" id="view-restore">
+        <div class="section-intro">
+          <h2>Restore a version</h2>
+          <p>Choose a completed version and an empty destination. The client verifies each chunk while reconstructing files.</p>
+        </div>
+        <section class="panel">
+          <form id="restore-form" class="form">
+            <label>
+              Version
+              <select id="restore-version" required></select>
+            </label>
+            <label>
+              Destination folder
+              <input id="restore-destination" value="restored" required spellcheck="false">
+            </label>
+            <div class="form-actions">
+              <button class="button button-primary" type="submit" id="restore-button">Restore version</button>
+              <span class="form-status" id="restore-status"></span>
+            </div>
+          </form>
+        </section>
+      </section>
+
+      <section class="view" id="view-verify">
+        <div class="section-intro">
+          <h2>Integrity verification</h2>
+          <p>Re-hash stored chunks and trace any damaged chunk back to the completed versions and files that reference it.</p>
+        </div>
+        <section class="verify-panel" id="verify-result">
+          <div class="verify-empty">No verification run in this session.</div>
+        </section>
+        <div class="verify-actions">
+          <button class="button button-primary" id="verify-button">Run verification</button>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
